@@ -7,20 +7,19 @@
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { margin: 0; padding: 20px; background-color: #f4f6f9; color: #333; }
-        .header { background: #2c3e50; color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .header { background: #2c3e50; color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; }
         .header h1 { margin: 0; font-size: 22px; }
         .container { display: grid; grid-template-columns: 1fr 380px; gap: 20px; max-width: 1400px; margin: 0 auto; }
         .card { background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; }
         
         .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; margin-top: 15px; }
-        .product-card { border: 1px solid #e1e8ed; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; background: #fff; transition: transform 0.2s; }
-        .product-card:hover { transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .product-card { border: 1px solid #e1e8ed; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; background: #fff; }
         .product-title { font-weight: 600; font-size: 14px; margin: 8px 0; min-height: 36px; }
         .product-price { color: #27ae60; font-weight: bold; font-size: 16px; margin-bottom: 8px; }
         
         label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 5px; color: #555; }
         input, select, button { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; margin-bottom: 12px; }
-        button { background-color: #3498db; color: white; border: none; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        button { background-color: #3498db; color: white; border: none; font-weight: bold; cursor: pointer; }
         button:hover { background-color: #2980b9; }
         button.btn-success { background-color: #2ecc71; padding: 12px; font-size: 16px; }
         button.btn-success:hover { background-color: #27ae60; }
@@ -34,7 +33,6 @@
         th, td { border: 1px solid #e1e8ed; padding: 10px; text-align: left; }
         th { background-color: #f8f9fa; }
         .total-amount { font-size: 18px; font-weight: bold; color: #c0392b; text-align: right; margin: 10px 0; }
-        .delete-org-btn { background: #e74c3c; color: white; border: none; padding: 4px 8px; border-radius: 4px; width: auto; font-size: 12px; cursor: pointer; margin-left: 5px; }
 
         @media (max-width: 900px) {
             .container { grid-template-columns: 1fr; }
@@ -48,15 +46,13 @@
     </div>
 
     <div class="container">
-        <!-- Левая колонка: Каталог товаров -->
         <div>
             <div class="card">
-                <h2>Каталог товаров</h2>
+                <h2>Все товары с сайта</h2>
                 <div id="loading">Загрузка товаров...</div>
                 <div class="products-grid" id="productsGrid"></div>
             </div>
 
-            <!-- История зачислений -->
             <div class="card">
                 <h2>История зачисленных долгов</h2>
                 <table>
@@ -65,20 +61,16 @@
                             <th>Дата</th>
                             <th>Организация</th>
                             <th>Состав заказа</th>
-                            <th>Итого (сом/руб)</th>
+                            <th>Итого</th>
                             <th>Действие</th>
                         </tr>
                     </thead>
-                    <tbody id="historyTableBody">
-                        <!-- История -->
-                    </tbody>
+                    <tbody id="historyTableBody"></tbody>
                 </table>
             </div>
         </div>
 
-        <!-- Правая колонка: Панель оформления долга -->
         <div>
-            <!-- Управление организациями -->
             <div class="card">
                 <h3>1. Выбор организации</h3>
                 <label for="orgSelect">Организация-должник:</label>
@@ -93,7 +85,6 @@
                 <button onclick="addOrganization()">+ Добавить организацию</button>
             </div>
 
-            <!-- Формирование списания -->
             <div class="card">
                 <h3>2. Состав долга</h3>
                 <div id="cartItemsContainer">
@@ -115,27 +106,29 @@
         let debtCart = [];
         let debtHistory = [];
 
-        // Инициализация данных при загрузке
         async function init() {
             await fetchProducts();
             await fetchOrganizations();
             await fetchDebts();
         }
 
-        // 1. Получение товаров
         async function fetchProducts() {
             try {
                 const res = await fetch('/api/products');
                 products = await res.json();
                 renderProducts();
             } catch (err) {
-                console.error("Ошибка загрузки товаров:", err);
+                console.error("Ошибка:", err);
             }
         }
 
         function renderProducts() {
             document.getElementById('loading').style.display = 'none';
             const grid = document.getElementById('productsGrid');
+            if(products.length === 0) {
+                grid.innerHTML = '<div>Товары не найдены</div>';
+                return;
+            }
             grid.innerHTML = products.map(p => `
                 <div class="product-card">
                     <div class="product-title">${p.title}</div>
@@ -145,14 +138,13 @@
             `).join('');
         }
 
-        // 2. Получение и управление организациями
         async function fetchOrganizations() {
             try {
                 const res = await fetch('/api/organizations');
                 organizations = await res.json();
                 renderOrganizations();
             } catch (err) {
-                console.error("Ошибка загрузки организаций:", err);
+                console.error("Ошибка:", err);
             }
         }
 
@@ -178,11 +170,10 @@
                 await fetchOrganizations();
             } else {
                 const data = await res.json();
-                alert(data.error || "Ошибка при добавлении");
+                alert(data.error || "Ошибка");
             }
         }
 
-        // 3. Управление корзиной товаров
         function addToDebtCart(productId) {
             const product = products.find(p => p.id === productId);
             const existItem = debtCart.find(item => item.id === productId);
@@ -235,7 +226,6 @@
             document.getElementById('totalSum').innerText = total;
         }
 
-        // 4. Оформление долга
         async function processDebt() {
             const orgSelect = document.getElementById('orgSelect');
             const selectedOrg = orgSelect.value;
@@ -262,27 +252,26 @@
                 debtCart = [];
                 renderCart();
                 await fetchDebts();
-                alert(`Долг на сумму ${totalSum} сом/руб зачислен на "${selectedOrg}"!`);
+                alert(`Долг на сумму ${totalSum} зачислен на "${selectedOrg}"!`);
             } else {
-                alert("Ошибка при зачислении долга");
+                alert("Ошибка при зачислении");
             }
         }
 
-        // 5. Загрузка и удаление истории долгов
         async function fetchDebts() {
             try {
                 const res = await fetch('/api/debts');
                 debtHistory = await res.json();
                 renderHistory();
             } catch (err) {
-                console.error("Ошибка загрузки долгов:", err);
+                console.error("Ошибка:", err);
             }
         }
 
         function renderHistory() {
             const body = document.getElementById('historyTableBody');
             if (debtHistory.length === 0) {
-                body.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#888;">Записей о долгах пока нет</td></tr>';
+                body.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#888;">Записей пока нет</td></tr>';
                 return;
             }
 
@@ -298,11 +287,9 @@
         }
 
         async function deleteDebt(id) {
-            if (!confirm("Удалить эту запись о долге?")) return;
+            if (!confirm("Удалить этот долг?")) return;
             const res = await fetch(`/api/debts/${id}`, { method: 'DELETE' });
-            if (res.ok) {
-                await fetchDebts();
-            }
+            if (res.ok) await fetchDebts();
         }
 
         init();
