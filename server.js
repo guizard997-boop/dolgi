@@ -1,7 +1,6 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const cheerio = require('cheerio');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,7 +12,7 @@ app.use(express.static(publicPath));
 
 const DATA_FILE = path.join(__dirname, 'data.json');
 
-// Инициализация базы данных для организаций и долгов
+// Инициализация локальной базы данных для организаций и долгов
 function loadData() {
     if (!fs.existsSync(DATA_FILE)) {
         const initialData = {
@@ -30,48 +29,36 @@ function saveData(data) {
     fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
-// ПАРСИНГ ВСЕХ ТОВАРОВ С ОСНОВНОГО САЙТА
+// ПАРСИНГ ТОВАРОВ ИЗ JS-КОДА catalog.html
 app.get('/api/products', async (req, res) => {
     try {
         const response = await fetch('https://mircancelyarii-production.up.railway.app/catalog.html');
         if (!response.ok) {
-            throw new Error(`Ошибка загрузки каталога: ${response.statusText}`);
+            throw new Error(`Ошибка сети: ${response.statusText}`);
         }
         
         const html = await response.text();
-        const $ = cheerio.load(html);
-        const products = [];
 
-        // Парсим карточки товаров из HTML вашего сайта
-        $('.product-card, .card, .product-item').each((index, element) => {
-            const title = $(element).find('h3, .product-title, .title, .card-title').text().trim();
-            const priceText = $(element).find('.price, .product-price, p').text().trim();
-            
-            // Извлекаем только цифры цены
-            const priceMatch = priceText.match(/\d+/);
-            const price = priceMatch ? parseInt(priceMatch[0], 10) : 0;
+        // Извлекаем массив products = [...] из скрипта внутри catalog.html
+        const match = html.match(/const\s+products\s*=\s*(\[[\s\S]*?\]);/);
 
-            if (title) {
-                products.push({
-                    id: index + 1,
-                    title: title,
-                    price: price
-                });
-            }
-        });
+        if (match && match[1]) {
+            let jsonString = match[1];
 
-        // Если парсинг вернул список, отдаем его
-        if (products.length > 0) {
+            // Форматируем JS-массив в строгий JSON
+            jsonString = jsonString
+                .replace(/([a-zA-Z0-9_]+)\s*:/g, '"$1":') // Добавляем кавычки ключам
+                .replace(/'/g, '"')                       // Заменяем одинарные кавычки на двойные
+                .replace(/,\s*([\]}])/g, '$1');           // Удаляем висячие запятые
+
+            const products = JSON.parse(jsonString);
             return res.json(products);
         }
 
-        // Запасной ответ, если структура карточек отличается
-        res.json([
-            { id: 1, title: "Ошибка парсинга каталога (проверьте селекторы)", price: 0 }
-        ]);
+        res.status(404).json({ error: "Массив товаров не найден на сайте" });
 
     } catch (error) {
-        console.error("Ошибка при получении товаров:", error);
+        console.error("Ошибка парсинга товаров:", error);
         res.status(500).json({ error: "Не удалось загрузить товары с основного сайта" });
     }
 });
