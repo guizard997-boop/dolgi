@@ -1,30 +1,24 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const cheerio = require('cheerio');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+
+const publicPath = path.join(__dirname, 'public');
+app.use(express.static(publicPath));
 
 const DATA_FILE = path.join(__dirname, 'data.json');
 
-// Инициализация базы данных
+// Инициализация базы данных для организаций и долгов
 function loadData() {
     if (!fs.existsSync(DATA_FILE)) {
         const initialData = {
             organizations: [{ id: 1, name: "ОсОО 'Школа №1'" }, { id: 2, name: "ИП Иванов" }],
-            debts: [],
-            products: [
-                { id: 1, title: "Тетрадь 48 листов", price: 35 },
-                { id: 2, title: "Ручка шариковая синяя", price: 15 },
-                { id: 3, title: "Набор карандашей 12 цв.", price: 120 },
-                { id: 4, title: "Бумага А4 500 л.", price: 450 },
-                { id: 5, title: "Маркер черный", price: 40 },
-                { id: 6, title: "Папка-регистратор", price: 180 },
-                { id: 7, title: "Клей-карандаш 15г", price: 30 },
-                { id: 8, title: "Ножницы канцелярские", price: 85 }
-            ]
+            debts: []
         };
         fs.writeFileSync(DATA_FILE, JSON.stringify(initialData, null, 2));
         return initialData;
@@ -36,21 +30,58 @@ function saveData(data) {
     fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
-// Эндпоинты API
+// ПАРСИНГ ВСЕХ ТОВАРОВ С ОСНОВНОГО САЙТА
+app.get('/api/products', async (req, res) => {
+    try {
+        const response = await fetch('https://mircancelyarii-production.up.railway.app/catalog.html');
+        if (!response.ok) {
+            throw new Error(`Ошибка загрузки каталога: ${response.statusText}`);
+        }
+        
+        const html = await response.text();
+        const $ = cheerio.load(html);
+        const products = [];
 
-// Получить товары
-app.get('/api/products', (req, res) => {
-    const data = loadData();
-    res.json(data.products);
+        // Парсим карточки товаров из HTML вашего сайта
+        $('.product-card, .card, .product-item').each((index, element) => {
+            const title = $(element).find('h3, .product-title, .title, .card-title').text().trim();
+            const priceText = $(element).find('.price, .product-price, p').text().trim();
+            
+            // Извлекаем только цифры цены
+            const priceMatch = priceText.match(/\d+/);
+            const price = priceMatch ? parseInt(priceMatch[0], 10) : 0;
+
+            if (title) {
+                products.push({
+                    id: index + 1,
+                    title: title,
+                    price: price
+                });
+            }
+        });
+
+        // Если парсинг вернул список, отдаем его
+        if (products.length > 0) {
+            return res.json(products);
+        }
+
+        // Запасной ответ, если структура карточек отличается
+        res.json([
+            { id: 1, title: "Ошибка парсинга каталога (проверьте селекторы)", price: 0 }
+        ]);
+
+    } catch (error) {
+        console.error("Ошибка при получении товаров:", error);
+        res.status(500).json({ error: "Не удалось загрузить товары с основного сайта" });
+    }
 });
 
-// Получить список организаций
+// API ОРГАНИЗАЦИЙ
 app.get('/api/organizations', (req, res) => {
     const data = loadData();
     res.json(data.organizations);
 });
 
-// Добавить новую организацию
 app.post('/api/organizations', (req, res) => {
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: "Название обязательно" });
@@ -66,13 +97,12 @@ app.post('/api/organizations', (req, res) => {
     res.status(201).json(newOrg);
 });
 
-// Получить историю долгов
+// API ДОЛГОВ
 app.get('/api/debts', (req, res) => {
     const data = loadData();
     res.json(data.debts);
 });
 
-// Добавить новую запись о долге
 app.post('/api/debts', (req, res) => {
     const { org, items, total } = req.body;
     if (!org || !items || !total) return res.status(400).json({ error: "Все поля обязательны" });
@@ -90,7 +120,6 @@ app.post('/api/debts', (req, res) => {
     res.status(201).json(newDebt);
 });
 
-// Удалить запись о долге
 app.delete('/api/debts/:id', (req, res) => {
     const id = parseInt(req.params.id);
     const data = loadData();
@@ -99,9 +128,8 @@ app.delete('/api/debts/:id', (req, res) => {
     res.json({ success: true });
 });
 
-// Главный роут
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(publicPath, 'index.html'));
 });
 
 app.listen(PORT, () => {
